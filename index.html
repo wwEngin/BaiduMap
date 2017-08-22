@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+		<meta name="viewport" content="initial-scale=1.0, user-scalable=no" />
+		<style type="text/css">
+			body,
+			html,
+			#allmap {
+				width: 100%;
+				height: 100%;
+				overflow: hidden;
+				margin: 0;
+				font-family: "微软雅黑";
+			}
+			
+			#allmap {
+				width: 600px;
+				height: 400px;
+			}
+		</style>
+		<script src="http://libs.baidu.com/jquery/2.0.0/jquery.min.js"></script>
+		<script type="text/javascript" src="http://api.map.baidu.com/api?v=2.0&ak=XwiN2yTljSAKduupkVNuwRl2OK4Wrelj"></script>
+		<title>地址解析</title>
+	</head>
+
+	<body>
+		<input type="button" id="get" value="请求数据" onclick="get_addr()" />
+		<div id="allmap"></div>
+	</body>
+
+</html>
+<script type="text/javascript">
+	var items = [];
+	var page = 0;
+	var size = 100;
+
+	function get_addr() {
+		console.log("get address list from db, page: " + page);
+		$.ajax({
+			url: "http://192.168.31.99:8341/depts?page_index=" + page + "&page_size=" + size,
+			type: "get",
+			dataType: "json",
+			success: function(response) {
+				items = response;
+				console.log('请求成功');
+				setTimeout(convert, 1000);
+			},
+			error: function() {
+				alert("请求失败！");
+			}
+		});
+	}
+
+	// 百度地图API功能
+	var map = new BMap.Map("allmap");
+	var point = new BMap.Point(116.331398, 39.897445);
+	map.centerAndZoom(point, 12);
+	// 创建地址解析器实例
+	var myGeo = new BMap.Geocoder();
+	// 将地址解析结果显示在地图上,并调整地图视野
+	//	function bdGEO() {
+	//		var item = items[index].dept_address;
+	//
+	//		geocodeSearch(item);
+	//		index++;
+	//	}
+	//
+	//	function geocodeSearch(item) {
+	//		if(index < items.length) {
+	//			setTimeout(window.bdGEO, 400);
+	//		}
+	//		if(item != '' || item != null) {
+	//			myGeo.getPoint(item, function(point) {
+	//				if(point) {
+	//					map.centerAndZoom(point, 16);
+	//					map.addOverlay(new BMap.Marker(point));
+	//					items[index - 1].dept_longitude = point.lng * 1000000;
+	//					items[index - 1].dept_latitude = point.lat * 1000000;
+	//					console.log('dept_id：' + items[index - 1].dept_id)
+	//					console.log('地址：' + item)
+	//					$.ajax({
+	//						url: "http://192.168.31.99:8341/depts/" + items[index - 1].dept_id + "?lng=" + items[index - 1].dept_longitude + "&lat=" + items[index - 1].dept_latitude,
+	//						type: "put",
+	//						dataType: "json",
+	//						success: function(response) {
+	//							console.log(response)
+	//						},
+	//						error: function() {
+	//							alert("请求失败！");
+	//						}
+	//					});
+	//				} else {
+	//					console.log("您选择地址没有解析到结果!");
+	//				}
+	//			});
+	//		}
+	//
+	//	}
+
+	function next() {
+		page++;
+		get_addr();
+	}
+
+	function convert() {
+		console.log("convert page: " + page);
+		for(var i = 0; i < items.length; i++) {
+			(function(i) {
+				var item = items[i];
+				if(item.dept_address != null || item.dept_address != '') {
+					myGeo.getPoint(item.dept_address, function(point) {
+						if(point) {
+							map.centerAndZoom(point, 16);
+							map.addOverlay(new BMap.Marker(point));
+							item.dept_longitude = point.lng * 1000000;
+							item.dept_latitude = point.lat * 1000000;
+							console.log('dept_id：' + item.dept_id);
+							console.log('地址：' + item.dept_address);
+
+							if(i == items.length - 1) {
+								setTimeout(save, 1000);
+							}
+						} else {
+							console.log("您选择地址没有解析到结果!");
+						}
+					});
+				}
+			})(i);
+		}
+	}
+
+	function save() {
+		console.log("save page: " + page);
+		for(var i = 0; i < items.length; i++) {
+			(function(i) {
+				var item = items[i];
+				$.ajax({
+					url: "http://192.168.31.99:8341/depts/" + item.dept_id + "?lng=" + item.dept_longitude + "&lat=" + item.dept_latitude,
+					type: "put",
+					dataType: "json",
+					success: function(response) {
+						console.log('>>dept_id：' + item.dept_id);
+						console.log('>>地址：' + item.dept_address);
+						console.log(response);
+						
+						if(i == items.length - 1) {
+							setTimeout(next, 1000);
+						}
+					},
+					error: function() {
+						alert("请求失败！");
+					}					
+				});
+			})(i);
+		}
+	}
+</script>
